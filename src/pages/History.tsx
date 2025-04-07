@@ -9,7 +9,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { DateRange } from "react-day-picker";
+import { DateRangePicker } from "@/components/DateRangePicker";
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
+import { addDays, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 
 interface HistoryItem {
   id: string;
@@ -66,6 +71,10 @@ const mockHistoryItems: HistoryItem[] = [
 
 export default function History() {
   const [historyItems] = useState<HistoryItem[]>(mockHistoryItems);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: addDays(new Date(), -7),
+    to: new Date(),
+  });
 
   // Function to format date
   const formatDate = (dateString: string) => {
@@ -95,6 +104,35 @@ export default function History() {
     }
   };
 
+  // Filter items based on selected date range
+  const filteredItems = useMemo(() => {
+    if (!dateRange || !dateRange.from) {
+      return historyItems;
+    }
+
+    return historyItems.filter((item) => {
+      const itemDate = new Date(item.date);
+      
+      if (dateRange.from && !dateRange.to) {
+        // If only start date is selected
+        return itemDate >= startOfDay(dateRange.from);
+      } else if (dateRange.from && dateRange.to) {
+        // If both start and end dates are selected
+        return isWithinInterval(itemDate, {
+          start: startOfDay(dateRange.from),
+          end: endOfDay(dateRange.to),
+        });
+      }
+      
+      return true;
+    });
+  }, [historyItems, dateRange]);
+
+  // Reset date range to show all records
+  const resetDateRange = () => {
+    setDateRange(undefined);
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -102,9 +140,33 @@ export default function History() {
         <p className="text-muted-foreground">Track inventory changes over time.</p>
       </div>
       
+      <div className="flex flex-col sm:flex-row gap-4 sm:items-center">
+        <div className="w-full sm:w-auto sm:flex-1 md:max-w-md">
+          <DateRangePicker 
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+          />
+        </div>
+        <Button 
+          variant="outline" 
+          size="icon"
+          onClick={resetDateRange}
+          title="Reset date filter"
+        >
+          <RefreshCw className="h-4 w-4" />
+        </Button>
+      </div>
+      
       <Card>
         <CardHeader>
-          <CardTitle>Inventory History</CardTitle>
+          <CardTitle>
+            Inventory History
+            {dateRange?.from && (
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                {filteredItems.length} records
+              </span>
+            )}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -119,21 +181,29 @@ export default function History() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {historyItems.map((item) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="font-medium">{item.productName}</TableCell>
-                    <TableCell>{getActionBadge(item.action)}</TableCell>
-                    <TableCell>
-                      {item.action === "deleted" 
-                        ? "-" 
-                        : item.quantity > 0 
-                          ? `+${item.quantity}` 
-                          : item.quantity}
+                {filteredItems.length > 0 ? (
+                  filteredItems.map((item) => (
+                    <TableRow key={item.id}>
+                      <TableCell className="font-medium">{item.productName}</TableCell>
+                      <TableCell>{getActionBadge(item.action)}</TableCell>
+                      <TableCell>
+                        {item.action === "deleted" 
+                          ? "-" 
+                          : item.quantity > 0 
+                            ? `+${item.quantity}` 
+                            : item.quantity}
+                      </TableCell>
+                      <TableCell>{formatDate(item.date)}</TableCell>
+                      <TableCell>{item.user}</TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-6">
+                      No history items found in the selected date range.
                     </TableCell>
-                    <TableCell>{formatDate(item.date)}</TableCell>
-                    <TableCell>{item.user}</TableCell>
                   </TableRow>
-                ))}
+                )}
               </TableBody>
             </Table>
           </div>
