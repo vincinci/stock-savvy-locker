@@ -76,7 +76,15 @@ export default function ProductList() {
   const [products, setProducts] = useState<Product[]>(mockProducts);
   const [isLoading, setIsLoading] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isAddOpen, setIsAddOpen] = useState(false);
   const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
+  const [newProduct, setNewProduct] = useState<Omit<Product, 'id'>>({
+    name: '',
+    category: 'Electronics',
+    stock: 0,
+    price: 0,
+    sku: '',
+  });
   const { toast } = useToast();
 
   // Function to handle delete product
@@ -106,6 +114,36 @@ export default function ProductList() {
     toast({
       title: "Product updated",
       description: "The product details have been updated.",
+    });
+  };
+
+  // Function to open add dialog
+  const handleAddOpen = () => {
+    setNewProduct({
+      name: '',
+      category: 'Electronics',
+      stock: 0,
+      price: 0,
+      sku: '',
+    });
+    setIsAddOpen(true);
+  };
+
+  // Function to handle add product
+  const handleAddSave = () => {
+    // Generate a unique ID
+    const newId = (Math.max(...products.map(p => parseInt(p.id))) + 1).toString();
+    
+    const productToAdd: Product = {
+      id: newId,
+      ...newProduct
+    };
+    
+    setProducts([...products, productToAdd]);
+    setIsAddOpen(false);
+    toast({
+      title: "Product added",
+      description: "The new product has been added to inventory.",
     });
   };
 
@@ -156,7 +194,7 @@ export default function ProductList() {
               <FileText className="mr-2 h-4 w-4" />
               Export CSV
             </Button>
-            <Button size="sm">
+            <Button size="sm" onClick={handleAddOpen}>
               <Plus className="mr-2 h-4 w-4" />
               Add Product
             </Button>
@@ -328,6 +366,89 @@ export default function ProductList() {
               Cancel
             </Button>
             <Button onClick={handleEditSave}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Product Dialog */}
+      <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Add New Product</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="new-name" className="text-right">
+                Name
+              </Label>
+              <Input
+                id="new-name"
+                value={newProduct.name}
+                onChange={(e) => setNewProduct(prev => ({ ...prev, name: e.target.value }))}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="new-category" className="text-right">
+                Category
+              </Label>
+              <Select 
+                value={newProduct.category}
+                onValueChange={(value) => setNewProduct(prev => ({ ...prev, category: value }))}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Electronics">Electronics</SelectItem>
+                  <SelectItem value="Accessories">Accessories</SelectItem>
+                  <SelectItem value="Furniture">Furniture</SelectItem>
+                  <SelectItem value="Home">Home</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="new-sku" className="text-right">
+                SKU
+              </Label>
+              <Input
+                id="new-sku"
+                value={newProduct.sku}
+                onChange={(e) => setNewProduct(prev => ({ ...prev, sku: e.target.value }))}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="new-price" className="text-right">
+                Price ($)
+              </Label>
+              <Input
+                id="new-price"
+                type="number"
+                step="0.01"
+                value={newProduct.price || ""}
+                onChange={(e) => setNewProduct(prev => ({ ...prev, price: parseFloat(e.target.value) }))}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="new-stock" className="text-right">
+                Stock
+              </Label>
+              <Input
+                id="new-stock"
+                type="number"
+                value={newProduct.stock || ""}
+                onChange={(e) => setNewProduct(prev => ({ ...prev, stock: parseInt(e.target.value) }))}
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleAddSave}>Add Product</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
