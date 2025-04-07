@@ -9,6 +9,7 @@ import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
+import History from "./pages/History";
 import PlaceholderPage from "./pages/PlaceholderPage";
 import NotFound from "./pages/NotFound";
 
@@ -28,10 +29,7 @@ const App = () => (
           <Route path="/" element={<DashboardLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/products" element={<Products />} />
-            <Route path="/orders" element={<PlaceholderPage />} />
-            <Route path="/suppliers" element={<PlaceholderPage />} />
-            <Route path="/users" element={<PlaceholderPage />} />
-            <Route path="/low-stock" element={<PlaceholderPage />} />
+            <Route path="/history" element={<History />} />
             <Route path="/settings" element={<PlaceholderPage />} />
           </Route>
           

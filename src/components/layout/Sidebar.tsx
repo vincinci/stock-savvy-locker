@@ -4,11 +4,8 @@ import { cn } from "@/lib/utils";
 import { 
   Package, 
   BarChart, 
-  ShoppingCart, 
-  Truck, 
-  Settings, 
-  Users, 
-  AlertTriangle
+  History,
+  Settings
 } from "lucide-react";
 
 const sidebarItems = [
@@ -23,24 +20,9 @@ const sidebarItems = [
     href: "/products",
   },
   {
-    title: "Orders",
-    icon: ShoppingCart,
-    href: "/orders",
-  },
-  {
-    title: "Suppliers",
-    icon: Truck,
-    href: "/suppliers",
-  },
-  {
-    title: "Users",
-    icon: Users,
-    href: "/users",
-  },
-  {
-    title: "Low Stock",
-    icon: AlertTriangle,
-    href: "/low-stock",
+    title: "History",
+    icon: History,
+    href: "/history",
   },
   {
     title: "Settings",
