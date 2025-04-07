@@ -18,6 +18,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 
 interface Product {
   id: string;
@@ -25,7 +27,6 @@ interface Product {
   category: string;
   stock: number;
   price: number;
-  sku: string;
 }
 
 // Mock data
@@ -35,40 +36,35 @@ const mockProducts: Product[] = [
     name: "Wireless Earbuds",
     category: "Electronics",
     stock: 45,
-    price: 59.99,
-    sku: "EAR-001",
+    price: 59990,
   },
   {
     id: "2",
     name: "Leather Wallet",
     category: "Accessories",
     stock: 120,
-    price: 29.99,
-    sku: "WAL-002",
+    price: 29990,
   },
   {
     id: "3",
     name: "Smart Watch",
     category: "Electronics",
     stock: 18,
-    price: 199.99,
-    sku: "WAT-003",
+    price: 199990,
   },
   {
     id: "4",
     name: "Office Chair",
     category: "Furniture",
     stock: 7,
-    price: 149.99,
-    sku: "FUR-004",
+    price: 149990,
   },
   {
     id: "5",
     name: "Coffee Maker",
     category: "Home",
     stock: 32,
-    price: 89.99,
-    sku: "HOM-005",
+    price: 89990,
   },
 ];
 
@@ -83,8 +79,15 @@ export default function ProductList() {
     category: 'Electronics',
     stock: 0,
     price: 0,
-    sku: '',
   });
+  
+  // Category management states
+  const [categories, setCategories] = useState<string[]>(["Electronics", "Accessories", "Furniture", "Home"]);
+  const [isCategorySheetOpen, setIsCategorySheetOpen] = useState(false);
+  const [newCategory, setNewCategory] = useState("");
+  const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
+  const [isDeleteCategoryDialogOpen, setIsDeleteCategoryDialogOpen] = useState(false);
+  
   const { toast } = useToast();
 
   // Function to handle delete product
@@ -121,10 +124,9 @@ export default function ProductList() {
   const handleAddOpen = () => {
     setNewProduct({
       name: '',
-      category: 'Electronics',
+      category: categories.length > 0 ? categories[0] : '',
       stock: 0,
       price: 0,
-      sku: '',
     });
     setIsAddOpen(true);
   };
@@ -150,15 +152,14 @@ export default function ProductList() {
   // Function to export products as CSV
   const exportToCSV = () => {
     // Create CSV header
-    const headers = ["Name", "Category", "SKU", "Price", "Stock"];
+    const headers = ["Name", "Category", "Price (RWF)", "Stock"];
     
     // Convert products to CSV format
     const csvRows = products.map((product) => {
       return [
         product.name,
         product.category,
-        product.sku,
-        product.price.toFixed(2),
+        product.price.toLocaleString('en-US'),
         product.stock,
       ].join(",");
     });
@@ -183,6 +184,56 @@ export default function ProductList() {
       description: "The product list has been exported as CSV.",
     });
   };
+  
+  // Category management functions
+  const handleAddCategory = () => {
+    if (newCategory.trim() === '') return;
+    if (categories.includes(newCategory.trim())) {
+      toast({
+        title: "Category exists",
+        description: "This category already exists in the list.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setCategories([...categories, newCategory.trim()]);
+    setNewCategory("");
+    
+    toast({
+      title: "Category added",
+      description: `"${newCategory.trim()}" has been added to categories.`,
+    });
+  };
+  
+  const openDeleteCategoryDialog = (category: string) => {
+    setCategoryToDelete(category);
+    setIsDeleteCategoryDialogOpen(true);
+  };
+  
+  const handleDeleteCategory = () => {
+    if (!categoryToDelete) return;
+    
+    // Check if any products are using this category
+    const productsUsingCategory = products.filter(p => p.category === categoryToDelete);
+    
+    if (productsUsingCategory.length > 0) {
+      toast({
+        title: "Cannot delete category",
+        description: `There are ${productsUsingCategory.length} products using this category. Please reassign them first.`,
+        variant: "destructive",
+      });
+    } else {
+      setCategories(categories.filter(c => c !== categoryToDelete));
+      toast({
+        title: "Category deleted",
+        description: `"${categoryToDelete}" has been removed from categories.`,
+      });
+    }
+    
+    setCategoryToDelete(null);
+    setIsDeleteCategoryDialogOpen(false);
+  };
 
   return (
     <>
@@ -190,6 +241,9 @@ export default function ProductList() {
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle>Products Inventory</CardTitle>
           <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => setIsCategorySheetOpen(true)}>
+              Manage Categories
+            </Button>
             <Button variant="outline" size="sm" onClick={exportToCSV}>
               <FileText className="mr-2 h-4 w-4" />
               Export CSV
@@ -207,8 +261,7 @@ export default function ProductList() {
                 <TableRow>
                   <TableHead>Product Name</TableHead>
                   <TableHead>Category</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead className="text-right">Price</TableHead>
+                  <TableHead className="text-right">Price (RWF)</TableHead>
                   <TableHead className="text-right">Stock</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -221,9 +274,6 @@ export default function ProductList() {
                       <TableRow key={index}>
                         <TableCell>
                           <Skeleton className="h-4 w-[120px]" />
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="h-4 w-[80px]" />
                         </TableCell>
                         <TableCell>
                           <Skeleton className="h-4 w-[80px]" />
@@ -247,8 +297,7 @@ export default function ProductList() {
                     <TableRow key={product.id}>
                       <TableCell className="font-medium">{product.name}</TableCell>
                       <TableCell>{product.category}</TableCell>
-                      <TableCell>{product.sku}</TableCell>
-                      <TableCell className="text-right">${product.price.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">{product.price.toLocaleString('en-US')} RWF</TableCell>
                       <TableCell className="text-right">
                         <Badge
                           variant={product.stock > 10 ? "outline" : "destructive"}
@@ -313,32 +362,19 @@ export default function ProductList() {
                   <SelectValue placeholder="Select a category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Electronics">Electronics</SelectItem>
-                  <SelectItem value="Accessories">Accessories</SelectItem>
-                  <SelectItem value="Furniture">Furniture</SelectItem>
-                  <SelectItem value="Home">Home</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category} value={category}>{category}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="sku" className="text-right">
-                SKU
-              </Label>
-              <Input
-                id="sku"
-                value={currentProduct?.sku || ""}
-                onChange={(e) => setCurrentProduct(prev => prev ? { ...prev, sku: e.target.value } : null)}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="price" className="text-right">
-                Price ($)
+                Price (RWF)
               </Label>
               <Input
                 id="price"
                 type="number"
-                step="0.01"
                 value={currentProduct?.price || 0}
                 onChange={(e) => setCurrentProduct(prev => 
                   prev ? { ...prev, price: parseFloat(e.target.value) } : null
@@ -400,32 +436,19 @@ export default function ProductList() {
                   <SelectValue placeholder="Select a category" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Electronics">Electronics</SelectItem>
-                  <SelectItem value="Accessories">Accessories</SelectItem>
-                  <SelectItem value="Furniture">Furniture</SelectItem>
-                  <SelectItem value="Home">Home</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category} value={category}>{category}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="new-sku" className="text-right">
-                SKU
-              </Label>
-              <Input
-                id="new-sku"
-                value={newProduct.sku}
-                onChange={(e) => setNewProduct(prev => ({ ...prev, sku: e.target.value }))}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="new-price" className="text-right">
-                Price ($)
+                Price (RWF)
               </Label>
               <Input
                 id="new-price"
                 type="number"
-                step="0.01"
                 value={newProduct.price || ""}
                 onChange={(e) => setNewProduct(prev => ({ ...prev, price: parseFloat(e.target.value) }))}
                 className="col-span-3"
@@ -452,6 +475,75 @@ export default function ProductList() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {/* Category Management Slide-over */}
+      <Sheet open={isCategorySheetOpen} onOpenChange={setIsCategorySheetOpen}>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Manage Categories</SheetTitle>
+          </SheetHeader>
+          
+          <div className="py-6">
+            <div className="flex items-center space-x-2 mb-6">
+              <Input
+                placeholder="New category name"
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleAddCategory();
+                  }
+                }}
+              />
+              <Button onClick={handleAddCategory}>Add</Button>
+            </div>
+            
+            <div className="space-y-2">
+              <h3 className="font-medium">Current Categories</h3>
+              {categories.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No categories defined</p>
+              ) : (
+                <div className="space-y-2">
+                  {categories.map((category) => (
+                    <div key={category} className="flex justify-between items-center p-2 border rounded-md">
+                      <span>{category}</span>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => openDeleteCategoryDialog(category)}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+          
+          <SheetFooter>
+            <Button variant="outline" onClick={() => setIsCategorySheetOpen(false)}>
+              Close
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+      
+      {/* Delete Category Confirmation Dialog */}
+      <AlertDialog open={isDeleteCategoryDialogOpen} onOpenChange={setIsDeleteCategoryDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You are about to delete the "{categoryToDelete}" category. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setCategoryToDelete(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCategory}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
