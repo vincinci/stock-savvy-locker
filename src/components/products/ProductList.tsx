@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import {
   Table,
@@ -13,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Edit, FileText, Plus, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/use-toast";
@@ -44,7 +43,6 @@ export default function ProductList() {
     price: 0,
   });
   
-  // Category management states
   const [categories, setCategories] = useState<string[]>([]);
   const [isCategorySheetOpen, setIsCategorySheetOpen] = useState(false);
   const [newCategory, setNewCategory] = useState("");
@@ -53,7 +51,6 @@ export default function ProductList() {
   
   const { toast } = useToast();
 
-  // Fetch products from Supabase
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -71,13 +68,11 @@ export default function ProductList() {
           return;
         }
         
-        // Extract unique categories
         const uniqueCategories = Array.from(
           new Set(data.map(item => item.category).filter(Boolean) as string[])
         );
         setCategories(uniqueCategories);
         
-        // Map database items to Product interface
         const mappedProducts: Product[] = data.map(item => ({
           id: item.id,
           name: item.name,
@@ -102,33 +97,31 @@ export default function ProductList() {
     fetchProducts();
   }, [toast]);
 
-  // Function to handle delete product
   const handleDelete = async (id: string) => {
     try {
-      // Delete from Supabase
-      const { error } = await supabase
+      const { error: historyDeleteError } = await supabase
+        .from('stock_history')
+        .delete()
+        .eq('item_id', id);
+      
+      if (historyDeleteError) {
+        throw historyDeleteError;
+      }
+      
+      const { error: productDeleteError } = await supabase
         .from('stock_items')
         .delete()
         .eq('id', id);
       
-      if (error) {
-        throw error;
+      if (productDeleteError) {
+        throw productDeleteError;
       }
       
-      // Add to history
-      await supabase
-        .from('stock_history')
-        .insert({
-          item_id: id,
-          action: 'deleted'
-        });
-      
-      // Update UI
       setProducts(products.filter((product) => product.id !== id));
       
       toast({
         title: "Product deleted",
-        description: "The product has been removed from inventory.",
+        description: "The product and its history have been removed.",
       });
     } catch (error: any) {
       console.error('Error deleting product:', error);
@@ -140,18 +133,15 @@ export default function ProductList() {
     }
   };
 
-  // Function to open edit dialog
   const handleEditOpen = (product: Product) => {
     setCurrentProduct({ ...product });
     setIsEditOpen(true);
   };
 
-  // Function to handle edit product
   const handleEditSave = async () => {
     if (!currentProduct) return;
 
     try {
-      // Update in Supabase
       const { error } = await supabase
         .from('stock_items')
         .update({
@@ -166,7 +156,6 @@ export default function ProductList() {
         throw error;
       }
       
-      // Add to history
       await supabase
         .from('stock_history')
         .insert({
@@ -174,7 +163,6 @@ export default function ProductList() {
           action: 'updated'
         });
       
-      // Update UI
       setProducts(products.map((p) => 
         p.id === currentProduct.id ? currentProduct : p
       ));
@@ -194,7 +182,6 @@ export default function ProductList() {
     }
   };
 
-  // Function to open add dialog
   const handleAddOpen = () => {
     setNewProduct({
       name: '',
@@ -205,12 +192,10 @@ export default function ProductList() {
     setIsAddOpen(true);
   };
 
-  // Function to handle add product
   const handleAddSave = async () => {
     try {
       const id = uuidv4();
       
-      // Add to Supabase
       const { error } = await supabase
         .from('stock_items')
         .insert({
@@ -225,7 +210,6 @@ export default function ProductList() {
         throw error;
       }
       
-      // Add to history
       await supabase
         .from('stock_history')
         .insert({
@@ -233,7 +217,6 @@ export default function ProductList() {
           action: 'added'
         });
       
-      // Update UI
       const productToAdd: Product = {
         id,
         ...newProduct
@@ -241,7 +224,6 @@ export default function ProductList() {
       
       setProducts([...products, productToAdd]);
       
-      // If this is a new category, add it to the list
       if (newProduct.category && !categories.includes(newProduct.category)) {
         setCategories([...categories, newProduct.category]);
       }
@@ -261,12 +243,9 @@ export default function ProductList() {
     }
   };
 
-  // Function to export products as CSV
   const exportToCSV = () => {
-    // Create CSV header
     const headers = ["Name", "Category", "Price (RWF)", "Stock"];
     
-    // Convert products to CSV format
     const csvRows = products.map((product) => {
       return [
         product.name,
@@ -276,14 +255,11 @@ export default function ProductList() {
       ].join(",");
     });
 
-    // Combine header and rows
     const csvContent = [headers.join(","), ...csvRows].join("\n");
     
-    // Create a blob and download link
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     
-    // Create a temporary link to trigger download
     const link = document.createElement("a");
     link.setAttribute("href", url);
     link.setAttribute("download", "inventory-products.csv");
@@ -296,8 +272,7 @@ export default function ProductList() {
       description: "The product list has been exported as CSV.",
     });
   };
-  
-  // Category management functions
+
   const handleAddCategory = () => {
     if (newCategory.trim() === '') return;
     if (categories.includes(newCategory.trim())) {
@@ -317,16 +292,15 @@ export default function ProductList() {
       description: `"${newCategory.trim()}" has been added to categories.`,
     });
   };
-  
+
   const openDeleteCategoryDialog = (category: string) => {
     setCategoryToDelete(category);
     setIsDeleteCategoryDialogOpen(true);
   };
-  
+
   const handleDeleteCategory = () => {
     if (!categoryToDelete) return;
     
-    // Check if any products are using this category
     const productsUsingCategory = products.filter(p => p.category === categoryToDelete);
     
     if (productsUsingCategory.length > 0) {
@@ -444,7 +418,6 @@ export default function ProductList() {
         </CardContent>
       </Card>
 
-      {/* Edit Product Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -518,7 +491,6 @@ export default function ProductList() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Product Dialog */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -587,8 +559,7 @@ export default function ProductList() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
-      {/* Category Management Slide-over */}
+
       <Sheet open={isCategorySheetOpen} onOpenChange={setIsCategorySheetOpen}>
         <SheetContent>
           <SheetHeader>
@@ -640,8 +611,7 @@ export default function ProductList() {
           </SheetFooter>
         </SheetContent>
       </Sheet>
-      
-      {/* Delete Category Confirmation Dialog */}
+
       <AlertDialog open={isDeleteCategoryDialogOpen} onOpenChange={setIsDeleteCategoryDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
