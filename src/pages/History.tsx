@@ -1,4 +1,5 @@
 
+import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -9,12 +10,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { useState, useMemo } from "react";
 import { DateRange } from "react-day-picker";
 import { DateRangePicker } from "@/components/DateRangePicker";
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Loader2 } from "lucide-react";
 import { addDays, isWithinInterval, startOfDay, endOfDay } from "date-fns";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/components/ui/use-toast";
 
 interface HistoryItem {
   id: string;
@@ -25,56 +27,68 @@ interface HistoryItem {
   user: string;
 }
 
-// Mock data for history items
-const mockHistoryItems: HistoryItem[] = [
-  {
-    id: "1",
-    productName: "Wireless Earbuds",
-    action: "added",
-    quantity: 20,
-    date: "2025-04-05T14:30:00",
-    user: "admin@example.com",
-  },
-  {
-    id: "2",
-    productName: "Smart Watch",
-    action: "updated",
-    quantity: 5,
-    date: "2025-04-04T09:15:00",
-    user: "manager@example.com",
-  },
-  {
-    id: "3",
-    productName: "Coffee Maker",
-    action: "adjusted",
-    quantity: -3,
-    date: "2025-04-03T16:45:00",
-    user: "admin@example.com",
-  },
-  {
-    id: "4",
-    productName: "Office Chair",
-    action: "deleted",
-    quantity: 0,
-    date: "2025-04-02T11:20:00",
-    user: "manager@example.com",
-  },
-  {
-    id: "5",
-    productName: "Leather Wallet",
-    action: "adjusted",
-    quantity: 10,
-    date: "2025-04-01T13:50:00",
-    user: "admin@example.com",
-  },
-];
-
 export default function History() {
-  const [historyItems] = useState<HistoryItem[]>(mockHistoryItems);
+  const [historyItems, setHistoryItems] = useState<HistoryItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: addDays(new Date(), -7),
     to: new Date(),
   });
+  const { toast } = useToast();
+
+  // Fetch history data
+  useEffect(() => {
+    const fetchHistoryData = async () => {
+      setIsLoading(true);
+      try {
+        const { data: historyData, error: historyError } = await supabase
+          .from('stock_history')
+          .select(`
+            id, 
+            action,
+            timestamp,
+            item_id,
+            stock_items (
+              name,
+              quantity
+            )
+          `);
+
+        if (historyError) {
+          console.error("Error fetching history:", historyError);
+          toast({
+            title: "Failed to load history",
+            description: historyError.message,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Transform data to match our interface
+        const transformedData: HistoryItem[] = historyData.map(item => ({
+          id: item.id,
+          productName: item.stock_items?.name || "Unknown Product",
+          action: item.action as "added" | "updated" | "deleted" | "adjusted",
+          quantity: item.stock_items?.quantity || 0,
+          date: item.timestamp || new Date().toISOString(),
+          user: "admin@example.com", // In a real app, this would come from auth
+        }));
+
+        setHistoryItems(transformedData);
+      } catch (error) {
+        console.error("Unexpected error:", error);
+        toast({
+          title: "An unexpected error occurred",
+          description: "Could not load history data. Please try again later.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchHistoryData();
+  }, [toast]);
 
   // Function to format date
   const formatDate = (dateString: string) => {
@@ -170,42 +184,48 @@ export default function History() {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product Name</TableHead>
-                  <TableHead>Action</TableHead>
-                  <TableHead>Quantity</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>User</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredItems.length > 0 ? (
-                  filteredItems.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.productName}</TableCell>
-                      <TableCell>{getActionBadge(item.action)}</TableCell>
-                      <TableCell>
-                        {item.action === "deleted" 
-                          ? "-" 
-                          : item.quantity > 0 
-                            ? `+${item.quantity}` 
-                            : item.quantity}
-                      </TableCell>
-                      <TableCell>{formatDate(item.date)}</TableCell>
-                      <TableCell>{item.user}</TableCell>
-                    </TableRow>
-                  ))
-                ) : (
+            {isLoading ? (
+              <div className="flex justify-center items-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-6">
-                      No history items found in the selected date range.
-                    </TableCell>
+                    <TableHead>Product Name</TableHead>
+                    <TableHead>Action</TableHead>
+                    <TableHead>Quantity</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>User</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredItems.length > 0 ? (
+                    filteredItems.map((item) => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">{item.productName}</TableCell>
+                        <TableCell>{getActionBadge(item.action)}</TableCell>
+                        <TableCell>
+                          {item.action === "deleted" 
+                            ? "-" 
+                            : item.quantity > 0 
+                              ? `+${item.quantity}` 
+                              : item.quantity}
+                        </TableCell>
+                        <TableCell>{formatDate(item.date)}</TableCell>
+                        <TableCell>{item.user}</TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-6">
+                        No history items found in the selected date range.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </div>
         </CardContent>
       </Card>

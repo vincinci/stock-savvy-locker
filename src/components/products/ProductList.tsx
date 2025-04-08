@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Table,
   TableBody,
@@ -20,69 +20,32 @@ import { useToast } from "@/components/ui/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
+import { supabase } from "@/integrations/supabase/client";
+import { v4 as uuidv4 } from 'uuid';
 
 interface Product {
   id: string;
   name: string;
-  category: string;
+  category: string | null;
   stock: number;
   price: number;
 }
 
-// Mock data
-const mockProducts: Product[] = [
-  {
-    id: "1",
-    name: "Wireless Earbuds",
-    category: "Electronics",
-    stock: 45,
-    price: 59990,
-  },
-  {
-    id: "2",
-    name: "Leather Wallet",
-    category: "Accessories",
-    stock: 120,
-    price: 29990,
-  },
-  {
-    id: "3",
-    name: "Smart Watch",
-    category: "Electronics",
-    stock: 18,
-    price: 199990,
-  },
-  {
-    id: "4",
-    name: "Office Chair",
-    category: "Furniture",
-    stock: 7,
-    price: 149990,
-  },
-  {
-    id: "5",
-    name: "Coffee Maker",
-    category: "Home",
-    stock: 32,
-    price: 89990,
-  },
-];
-
 export default function ProductList() {
-  const [products, setProducts] = useState<Product[]>(mockProducts);
-  const [isLoading, setIsLoading] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [currentProduct, setCurrentProduct] = useState<Product | null>(null);
   const [newProduct, setNewProduct] = useState<Omit<Product, 'id'>>({
     name: '',
-    category: 'Electronics',
+    category: '',
     stock: 0,
     price: 0,
   });
   
   // Category management states
-  const [categories, setCategories] = useState<string[]>(["Electronics", "Accessories", "Furniture", "Home"]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [isCategorySheetOpen, setIsCategorySheetOpen] = useState(false);
   const [newCategory, setNewCategory] = useState("");
   const [categoryToDelete, setCategoryToDelete] = useState<string | null>(null);
@@ -90,13 +53,91 @@ export default function ProductList() {
   
   const { toast } = useToast();
 
+  // Fetch products from Supabase
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('stock_items')
+          .select('*');
+        
+        if (error) {
+          console.error('Error fetching products:', error);
+          toast({
+            title: "Failed to load products",
+            description: error.message,
+            variant: "destructive",
+          });
+          return;
+        }
+        
+        // Extract unique categories
+        const uniqueCategories = Array.from(
+          new Set(data.map(item => item.category).filter(Boolean) as string[])
+        );
+        setCategories(uniqueCategories);
+        
+        // Map database items to Product interface
+        const mappedProducts: Product[] = data.map(item => ({
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          stock: item.quantity,
+          price: item.price,
+        }));
+        
+        setProducts(mappedProducts);
+      } catch (err) {
+        console.error('Unexpected error:', err);
+        toast({
+          title: "An unexpected error occurred",
+          description: "Could not load products. Please try again later.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, [toast]);
+
   // Function to handle delete product
-  const handleDelete = (id: string) => {
-    setProducts(products.filter((product) => product.id !== id));
-    toast({
-      title: "Product deleted",
-      description: "The product has been removed from inventory.",
-    });
+  const handleDelete = async (id: string) => {
+    try {
+      // Delete from Supabase
+      const { error } = await supabase
+        .from('stock_items')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Add to history
+      await supabase
+        .from('stock_history')
+        .insert({
+          item_id: id,
+          action: 'deleted'
+        });
+      
+      // Update UI
+      setProducts(products.filter((product) => product.id !== id));
+      
+      toast({
+        title: "Product deleted",
+        description: "The product has been removed from inventory.",
+      });
+    } catch (error: any) {
+      console.error('Error deleting product:', error);
+      toast({
+        title: "Failed to delete product",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   // Function to open edit dialog
@@ -106,25 +147,58 @@ export default function ProductList() {
   };
 
   // Function to handle edit product
-  const handleEditSave = () => {
+  const handleEditSave = async () => {
     if (!currentProduct) return;
 
-    setProducts(products.map((p) => 
-      p.id === currentProduct.id ? currentProduct : p
-    ));
-    
-    setIsEditOpen(false);
-    toast({
-      title: "Product updated",
-      description: "The product details have been updated.",
-    });
+    try {
+      // Update in Supabase
+      const { error } = await supabase
+        .from('stock_items')
+        .update({
+          name: currentProduct.name,
+          category: currentProduct.category,
+          quantity: currentProduct.stock,
+          price: currentProduct.price
+        })
+        .eq('id', currentProduct.id);
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Add to history
+      await supabase
+        .from('stock_history')
+        .insert({
+          item_id: currentProduct.id,
+          action: 'updated'
+        });
+      
+      // Update UI
+      setProducts(products.map((p) => 
+        p.id === currentProduct.id ? currentProduct : p
+      ));
+      
+      setIsEditOpen(false);
+      toast({
+        title: "Product updated",
+        description: "The product details have been updated.",
+      });
+    } catch (error: any) {
+      console.error('Error updating product:', error);
+      toast({
+        title: "Failed to update product",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   // Function to open add dialog
   const handleAddOpen = () => {
     setNewProduct({
       name: '',
-      category: categories.length > 0 ? categories[0] : '',
+      category: categories.length > 0 ? categories[0] : null,
       stock: 0,
       price: 0,
     });
@@ -132,21 +206,59 @@ export default function ProductList() {
   };
 
   // Function to handle add product
-  const handleAddSave = () => {
-    // Generate a unique ID
-    const newId = (Math.max(...products.map(p => parseInt(p.id))) + 1).toString();
-    
-    const productToAdd: Product = {
-      id: newId,
-      ...newProduct
-    };
-    
-    setProducts([...products, productToAdd]);
-    setIsAddOpen(false);
-    toast({
-      title: "Product added",
-      description: "The new product has been added to inventory.",
-    });
+  const handleAddSave = async () => {
+    try {
+      const id = uuidv4();
+      
+      // Add to Supabase
+      const { error } = await supabase
+        .from('stock_items')
+        .insert({
+          id,
+          name: newProduct.name,
+          category: newProduct.category,
+          quantity: newProduct.stock,
+          price: newProduct.price
+        });
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Add to history
+      await supabase
+        .from('stock_history')
+        .insert({
+          item_id: id,
+          action: 'added'
+        });
+      
+      // Update UI
+      const productToAdd: Product = {
+        id,
+        ...newProduct
+      };
+      
+      setProducts([...products, productToAdd]);
+      
+      // If this is a new category, add it to the list
+      if (newProduct.category && !categories.includes(newProduct.category)) {
+        setCategories([...categories, newProduct.category]);
+      }
+      
+      setIsAddOpen(false);
+      toast({
+        title: "Product added",
+        description: "The new product has been added to inventory.",
+      });
+    } catch (error: any) {
+      console.error('Error adding product:', error);
+      toast({
+        title: "Failed to add product",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
   };
 
   // Function to export products as CSV
@@ -158,7 +270,7 @@ export default function ProductList() {
     const csvRows = products.map((product) => {
       return [
         product.name,
-        product.category,
+        product.category || "",
         product.price.toLocaleString('en-US'),
         product.stock,
       ].join(",");
@@ -355,7 +467,7 @@ export default function ProductList() {
                 Category
               </Label>
               <Select 
-                value={currentProduct?.category}
+                value={currentProduct?.category || ""}
                 onValueChange={(value) => setCurrentProduct(prev => prev ? { ...prev, category: value } : null)}
               >
                 <SelectTrigger className="col-span-3">
@@ -429,7 +541,7 @@ export default function ProductList() {
                 Category
               </Label>
               <Select 
-                value={newProduct.category}
+                value={newProduct.category || ""}
                 onValueChange={(value) => setNewProduct(prev => ({ ...prev, category: value }))}
               >
                 <SelectTrigger className="col-span-3">
