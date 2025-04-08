@@ -2,8 +2,7 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { LogOut, Search, Package } from "lucide-react";
+import { LogOut, Package } from "lucide-react";
 
 type User = {
   email: string;
@@ -40,18 +39,9 @@ export default function Header() {
         </div>
         
         <div className="flex flex-1 items-center justify-end space-x-4">
-          <div className="relative w-full max-w-sm lg:max-w-md">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search products..."
-              className="w-full bg-background pl-8 md:w-[300px] lg:w-[300px]"
-            />
-          </div>
-          
           {user && (
             <div className="flex items-center gap-4">
-              <span className="hidden text-sm text-muted-foreground md:inline-block">
+              <span className="text-sm text-muted-foreground">
                 {user.name}
               </span>
               <Button variant="outline" size="sm" onClick={handleLogout}>

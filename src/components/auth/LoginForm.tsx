@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const loginSchema = z.object({
   email: z
@@ -44,20 +45,25 @@ export default function LoginForm() {
     try {
       setError(null);
       setIsLoading(true);
+
+      // Use Supabase authentication
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password,
+      });
       
-      // Mock authentication - in a real app, this would call an API
-      console.log("Login attempt with:", data.email);
+      if (authError) {
+        setError(authError.message);
+        return;
+      }
       
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      // For demo purposes, we're using hardcoded credentials
-      if (data.email === "admin@example.com" && data.password === "password") {
-        // Store user info in localStorage
-        localStorage.setItem("user", JSON.stringify({ email: data.email, name: "Admin User" }));
+      if (authData && authData.user) {
+        // Store basic user info in localStorage
+        localStorage.setItem("user", JSON.stringify({ 
+          email: authData.user.email, 
+          name: authData.user.email?.split('@')[0] || 'User'
+        }));
         navigate("/dashboard");
-      } else {
-        setError("Invalid email or password");
       }
     } catch (err) {
       setError("An error occurred during login");

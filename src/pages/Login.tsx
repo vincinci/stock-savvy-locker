@@ -19,9 +19,6 @@ export default function Login() {
         <h1 className="text-3xl font-bold">StockSavvy</h1>
       </div>
       <LoginForm />
-      <p className="mt-6 text-center text-sm text-muted-foreground">
-        Demo access: admin@example.com / password
-      </p>
     </div>
   );
 }
