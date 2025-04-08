@@ -8,9 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const loginSchema = z.object({
   email: z
@@ -28,6 +29,7 @@ export default function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { toast } = useToast();
   
   const {
     register,
@@ -53,7 +55,15 @@ export default function LoginForm() {
       });
       
       if (authError) {
-        setError(authError.message);
+        // Check for specific error types
+        if (authError.message.includes("credentials")) {
+          setError("Invalid email or password. Please try again.");
+        } else if (authError.message.includes("verified")) {
+          setError("Email not verified. Please check your inbox for a verification email.");
+        } else {
+          setError(authError.message || "Authentication failed");
+        }
+        console.error("Auth error:", authError);
         return;
       }
       
@@ -63,11 +73,17 @@ export default function LoginForm() {
           email: authData.user.email, 
           name: authData.user.email?.split('@')[0] || 'User'
         }));
+        
+        toast({
+          title: "Login successful",
+          description: "Welcome back!",
+        });
+        
         navigate("/dashboard");
       }
     } catch (err) {
-      setError("An error occurred during login");
-      console.error(err);
+      console.error("Login error:", err);
+      setError("An unexpected error occurred. Please try again later.");
     } finally {
       setIsLoading(false);
     }
