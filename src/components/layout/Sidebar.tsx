@@ -4,8 +4,7 @@ import { cn } from "@/lib/utils";
 import { 
   Package, 
   BarChart, 
-  History,
-  Settings
+  History
 } from "lucide-react";
 
 const sidebarItems = [
@@ -23,11 +22,6 @@ const sidebarItems = [
     title: "History",
     icon: History,
     href: "/history",
-  },
-  {
-    title: "Settings",
-    icon: Settings,
-    href: "/settings",
   },
 ];
 
