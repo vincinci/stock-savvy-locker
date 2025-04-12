@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -22,13 +22,13 @@ export const AddProductDialog = ({
 }: AddProductDialogProps) => {
   const [newProduct, setNewProduct] = useState<NewProduct>({
     name: '',
-    category: categories.length > 0 ? categories[0] : null,
+    category: null,
     stock: 0,
     price: 0,
   });
 
-  // Reset form when dialog opens
-  React.useEffect(() => {
+  // Reset form when dialog opens and set default category if available
+  useEffect(() => {
     if (isOpen) {
       setNewProduct({
         name: '',
