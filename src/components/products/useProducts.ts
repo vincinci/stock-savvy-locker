@@ -17,6 +17,7 @@ export const useProducts = () => {
 
   const fetchProducts = async () => {
     try {
+      setIsLoading(true);
       const { data, error } = await supabase
         .from('stock_items')
         .select('*');
@@ -58,10 +59,19 @@ export const useProducts = () => {
   };
 
   const addProduct = async (newProduct: NewProduct) => {
+    if (!newProduct.name || newProduct.price < 0 || newProduct.stock < 0) {
+      toast({
+        title: "Invalid Product Details",
+        description: "Please check product name, price, and stock.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     try {
       const id = uuidv4();
       
-      const { error } = await supabase
+      const { error: insertError } = await supabase
         .from('stock_items')
         .insert({
           id,
@@ -71,26 +81,37 @@ export const useProducts = () => {
           price: newProduct.price
         });
       
-      if (error) {
-        throw error;
+      if (insertError) {
+        console.error('Error inserting product:', insertError);
+        toast({
+          title: "Failed to add product",
+          description: insertError.message,
+          variant: "destructive",
+        });
+        return false;
       }
       
-      await supabase
+      const { error: historyError } = await supabase
         .from('stock_history')
         .insert({
           item_id: id,
           action: 'added'
         });
       
+      if (historyError) {
+        console.error('Error logging product history:', historyError);
+        // We'll still consider this a success since the product was added
+      }
+      
       const productToAdd: Product = {
         id,
         ...newProduct
       };
       
-      setProducts([...products, productToAdd]);
+      setProducts(prev => [...prev, productToAdd]);
       
       if (newProduct.category && !categories.includes(newProduct.category)) {
-        setCategories([...categories, newProduct.category]);
+        setCategories(prev => [...prev, newProduct.category]);
       }
       
       toast({
@@ -100,10 +121,10 @@ export const useProducts = () => {
       
       return true;
     } catch (error: any) {
-      console.error('Error adding product:', error);
+      console.error('Unexpected error adding product:', error);
       toast({
         title: "Failed to add product",
-        description: error.message,
+        description: "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
       return false;
@@ -111,8 +132,17 @@ export const useProducts = () => {
   };
 
   const updateProduct = async (updatedProduct: Product) => {
+    if (!updatedProduct.name || updatedProduct.price < 0 || updatedProduct.stock < 0) {
+      toast({
+        title: "Invalid Product Details",
+        description: "Please check product name, price, and stock.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
     try {
-      const { error } = await supabase
+      const { error: updateError } = await supabase
         .from('stock_items')
         .update({
           name: updatedProduct.name,
@@ -122,20 +152,31 @@ export const useProducts = () => {
         })
         .eq('id', updatedProduct.id);
       
-      if (error) {
-        throw error;
+      if (updateError) {
+        console.error('Error updating product:', updateError);
+        toast({
+          title: "Failed to update product",
+          description: updateError.message,
+          variant: "destructive",
+        });
+        return false;
       }
       
-      await supabase
+      const { error: historyError } = await supabase
         .from('stock_history')
         .insert({
           item_id: updatedProduct.id,
           action: 'updated'
         });
       
-      setProducts(products.map((p) => 
-        p.id === updatedProduct.id ? updatedProduct : p
-      ));
+      if (historyError) {
+        console.error('Error logging product history:', historyError);
+        // We'll still consider this a success since the product was updated
+      }
+      
+      setProducts(prev => 
+        prev.map((p) => p.id === updatedProduct.id ? updatedProduct : p)
+      );
       
       toast({
         title: "Product updated",
@@ -144,10 +185,10 @@ export const useProducts = () => {
       
       return true;
     } catch (error: any) {
-      console.error('Error updating product:', error);
+      console.error('Unexpected error updating product:', error);
       toast({
         title: "Failed to update product",
-        description: error.message,
+        description: "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
       return false;
@@ -156,25 +197,40 @@ export const useProducts = () => {
 
   const deleteProduct = async (id: string) => {
     try {
+      // First, delete associated history records
       const { error: historyDeleteError } = await supabase
         .from('stock_history')
         .delete()
         .eq('item_id', id);
       
       if (historyDeleteError) {
-        throw historyDeleteError;
+        console.error('Error deleting product history:', historyDeleteError);
+        toast({
+          title: "Failed to delete product history",
+          description: historyDeleteError.message,
+          variant: "destructive",
+        });
+        return false;
       }
       
+      // Then delete the product itself
       const { error: productDeleteError } = await supabase
         .from('stock_items')
         .delete()
         .eq('id', id);
       
       if (productDeleteError) {
-        throw productDeleteError;
+        console.error('Error deleting product:', productDeleteError);
+        toast({
+          title: "Failed to delete product",
+          description: productDeleteError.message,
+          variant: "destructive",
+        });
+        return false;
       }
       
-      setProducts(products.filter((product) => product.id !== id));
+      // Remove the product from local state
+      setProducts(prev => prev.filter((product) => product.id !== id));
       
       toast({
         title: "Product deleted",
@@ -183,10 +239,10 @@ export const useProducts = () => {
       
       return true;
     } catch (error: any) {
-      console.error('Error deleting product:', error);
+      console.error('Unexpected error deleting product:', error);
       toast({
         title: "Failed to delete product",
-        description: error.message,
+        description: "An unexpected error occurred. Please try again.",
         variant: "destructive",
       });
       return false;
@@ -204,7 +260,7 @@ export const useProducts = () => {
       return false;
     }
     
-    setCategories([...categories, newCategory.trim()]);
+    setCategories(prev => [...prev, newCategory.trim()]);
     
     toast({
       title: "Category added",
@@ -225,7 +281,7 @@ export const useProducts = () => {
       });
       return false;
     } else {
-      setCategories(categories.filter(c => c !== categoryToDelete));
+      setCategories(prev => prev.filter(c => c !== categoryToDelete));
       toast({
         title: "Category deleted",
         description: `"${categoryToDelete}" has been removed from categories.`,
@@ -242,6 +298,7 @@ export const useProducts = () => {
     updateProduct,
     deleteProduct,
     addCategory,
-    deleteCategory
+    deleteCategory,
+    fetchProducts
   };
 };
