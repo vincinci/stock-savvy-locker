@@ -10,14 +10,22 @@ import {
   AlertTriangle, 
   ShoppingCart 
 } from "lucide-react";
+import { useProducts } from "@/components/products/useProducts";
 
 export default function Dashboard() {
-  const [isLoading, setIsLoading] = useState(true);
+  const { products, isLoading } = useProducts();
   
-  useEffect(() => {
-    // Remove simulated loading
-    setIsLoading(false);
-  }, []);
+  // Calculated statistics
+  const totalProducts = products.length;
+  
+  const totalValue = products.reduce((sum, product) => {
+    return sum + (product.price * product.stock);
+  }, 0);
+  
+  const lowStockItems = products.filter(product => product.stock <= 10).length;
+  
+  // For recent orders, we'll just show a placeholder since we don't have order tracking yet
+  const recentOrders = 0;
 
   return (
     <div className="space-y-6">
@@ -29,25 +37,25 @@ export default function Dashboard() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatsCard
           title="Total Products"
-          value={isLoading ? "--" : "0"}
+          value={isLoading ? "--" : totalProducts.toString()}
           description="Total products in inventory"
           icon={<Package className="h-5 w-5 text-muted-foreground" />}
         />
         <StatsCard
           title="Total Value"
-          value={isLoading ? "--" : "$0"}
+          value={isLoading ? "--" : `${totalValue.toLocaleString('en-US')} RWF`}
           description="Inventory valuation"
           icon={<TrendingUp className="h-5 w-5 text-muted-foreground" />}
         />
         <StatsCard
           title="Low Stock Items"
-          value={isLoading ? "--" : "0"}
-          description="Products close to out of stock"
+          value={isLoading ? "--" : lowStockItems.toString()}
+          description="Products with 10 or fewer items"
           icon={<AlertTriangle className="h-5 w-5 text-muted-foreground" />}
         />
         <StatsCard
           title="Recent Orders"
-          value={isLoading ? "--" : "0"}
+          value={isLoading ? "--" : recentOrders.toString()}
           description="Last 7 days"
           icon={<ShoppingCart className="h-5 w-5 text-muted-foreground" />}
         />
